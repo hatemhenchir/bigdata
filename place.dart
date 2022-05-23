@@ -1,44 +1,62 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:rolling_switch/rolling_switch.dart';
 //import 'package:toggle_switch/toggle_switch.dart';
+var dataplaces;
 
-class StatePlaces extends StatelessWidget {
+class StatePlaces extends StatefulWidget {
    StatePlaces({Key? key, required this.idPark, required this.nbre_de_place}) : super(key: key);
   final String idPark;
   String nbre_de_place;
 
-
-
-
- 
-
-
-  var nbre = 4;
-  
-  
-
-Map<String, bool> numbers = {};
-void  initNumbers(){
-  for(int  i=0;i<int.parse(nbre_de_place);i++){
-  numbers.addAll({"${i}":false});
-  }
-  
+  @override
+  State<StatePlaces> createState() => _StatePlacesState();
 }
 
 
- 
-  
+class _StatePlacesState extends State<StatePlaces> {
+  var nbre = 4;
 
+Map<String, bool> numbers = {};
+
+
+
+@override
+void initState() {
+  Future.delayed(Duration.zero,() async {
+        initNumbers();
+  });
+    
+  super.initState();
+  //print("object");
+  
+  //print("object");
+  //print("objectttt");
+  
+  
+}
+Future <Map<String, bool>> initNumbers()async{
+   dataplaces=await FirebaseFirestore.instance.collection("places").doc(widget.idPark).get();
+  //print("dataplaces=${dataplaces.data()?["place_libre"]}");
+  for(int  i=0;i<int.parse(widget.nbre_de_place);i++){
+  numbers.addAll({"$i":dataplaces.data()["$i"]});
+  }
+  print("numbers  lkoll  =$numbers");
+  return numbers;
+}
 
 
   @override
-  Widget build(BuildContext context) {
+  Widget build (BuildContext context)  {
     
 //print("park id = ${idPark}");
-
+ 
     //var nbre = 3;
     initNumbers();
+    print("numbers=$numbers");
    
     
 
@@ -59,7 +77,7 @@ void  initNumbers(){
                   SizedBox(
                     height: 40,
                   ),
-                  for (int i = 0; i < int.parse(nbre_de_place); i++) MyToggleList(i),
+                  for (int i = 0; i < int.parse(widget.nbre_de_place); i++)  MyToggleList(i),
                 ],
               ),
             ),
@@ -86,38 +104,63 @@ void  initNumbers(){
 
   Widget menuItem(i) {
     
+   
+    
+    
 
     return Material(
       
-      child: RollingSwitch.icon(
-      
-
-        onChanged: (bool state) {
-          numbers.addAll({"${i}":state});
-          print('turned ${i} ${(state) ? 'on' : 'off'}');
-          print("${numbers}");
-          print("nbre de palace  =${int.parse(nbre_de_place)} ");
+      child: StreamBuilder<DocumentSnapshot<Map<String , dynamic>>>(
+        stream: FirebaseFirestore.instance.collection("places").doc(widget.idPark).snapshots(),
+        builder: (context, snapshot)  {
+          var stateplace=snapshot.data?.data()?['$i'];
+          print("stateplace=$stateplace");
           
-          int  count=0;
-          for(int  i=0;i<numbers.length;i++){
-              if ( (numbers["${i}"]==false)){
-                  count+=1;
-              }
-
-          }
-          print("place libre = ${count}");
-          FirebaseFirestore.instance.collection("places").doc(idPark).set({"place_libre":count});
+        return 
+          RollingSwitch.icon(
+          //initialState:dataplaces.data()["$i"] ?? false   ,
+          initialState: numbers['$i'] ??dataplaces.data()['$i']??stateplace   ,
+        
+      
+          onChanged: (bool state) async{
+      
+            numbers.addAll({"${i}":state});
+            print('turned ${i} ${(state) ? 'on' : 'off'}');
+            print("${numbers}");
+            print("nbre de palace  =${int.parse(widget.nbre_de_place)} ");
+            
+            
+            int  count=0;
+            for(int  i=0;i<numbers.length;i++){
+                if ( (numbers["${i}"]==false)){
+                    count+=1;
+                }
+      
+            }
+            print("place libre = ${count}");
+            await FirebaseFirestore.instance.collection("places").doc(widget.idPark).update({"place_libre":count,
+            "$i":state});
+            setState(() {
+              
+            });
+          },
+          rollingInfoRight: const RollingIconInfo(
+            
+            icon: Icons.flag,
+             
+            text: Text('Full'),
+          ),
+          rollingInfoLeft: const RollingIconInfo(
+            icon: Icons.check,
+            backgroundColor: Colors.red,
+            text: Text('Empty'),
+          ),
+          
+        );
         },
-        rollingInfoRight: const RollingIconInfo(
-          icon: Icons.flag,
-          text: Text('Flag'),
-        ),
-        rollingInfoLeft: const RollingIconInfo(
-          icon: Icons.check,
-          backgroundColor: Colors.red,
-          text: Text('Check'),
-        ),
       ),
     );
   }
+
+ 
 }
