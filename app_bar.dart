@@ -1,210 +1,485 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-//import 'package:flutter_application_2/Views/chose_account.dart';
 import 'package:flutter_application_2/Views/intro.dart';
+import 'package:flutter_application_2/Views/visitor/parking_details.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:get/get.dart';
 
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
-import 'package:flutter_application_2/Views/login.dart';
-import 'package:flutter_application_2/Views/visitor/consult_reservation.dart';
-//import 'package:flutter_application_2/Views/services/payment_service.dart';
-//import 'package:flutter_application_2/Views/visitor/payment.dart';
-import 'package:flutter_application_2/Views/visitor/payment_method.dart';
-import 'package:flutter_application_2/Views/visitor/search_park.dart';
-//import 'package:geolocator/geolocator.dart';
-//import 'package:get/get.dart';
-//import 'package:get/get_core/src/get_main.dart';
-//import 'package:google_maps_flutter/google_maps_flutter.dart';
-//import 'package:provider/provider.dart';
+import '../services/payment_service.dart';
 
+var startDate;
+var finishDate;
 
-
-
-
-class AppHome extends StatefulWidget {
-  const AppHome({Key? key}) : super(key: key);
-
-  
+class Confirm extends StatefulWidget {
+  Confirm(
+      {Key? key,
+      required this.idPark,
+      required this.tarif,
+      required this.placelibre})
+      : super(key: key);
+  String idPark;
+  String tarif;
+  List placelibre;
 
   @override
-  _AppHomeState createState() => _AppHomeState();
+  State<Confirm> createState() => _ConfirmState();
 }
 
-class _AppHomeState extends State<AppHome> {
-  var currentPage = DrawerSections.Find_park;
-  
+class _ConfirmState extends State<Confirm> {
+  DateTime dateTime = DateTime.now();
+  final _formKey = GlobalKey<FormState>();
+
+  String? PlateNumber;
+  String? name;
+  String? phoneNumber;
+
+  List<dynamic> items = placelibre;
+  String? selectedItem;
   @override
   Widget build(BuildContext context) {
-    var container ;
-    if (currentPage == DrawerSections.Reservation){
-      container  =  ConsultReservation ();
-    } else if (currentPage == DrawerSections.Payment){
-      container = PaymentMethod();
-    } else if (currentPage == DrawerSections.Log_out) {
-     
-      container = TextButton(onPressed: () async {
-        await FirebaseAuth.instance.signOut();
-        Navigator.push(context, MaterialPageRoute(builder: ((context) => const Login())));
-      } , child: 
-      Text("ghjgjgj")
-      );
-    } else if (currentPage == DrawerSections.Find_park){
-      container = Search();
-    }
-
+    final PaymentService controller = PaymentService();
     return Scaffold(
-     
-      appBar: AppBar(
-        backgroundColor: Colors.teal,
-        
-        actions: [
-          IconButton(
-            onPressed:()async{
-              await FirebaseAuth.instance.signOut();
-              Navigator.push(context, MaterialPageRoute(builder:(context)=> Login()));
-            }, 
-            icon: Icon(Icons.logout),
-            iconSize: 30,
-            padding: EdgeInsets.symmetric(horizontal: 20),)
-        ],
-            ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: Colors.green[300],
+          onPressed: () async {
+            //Navigator.pushReplacement(context, MaterialPageRoute(builder:(context)=> Intro()));
+            if (_formKey.currentState!.validate()) {
+              var pay = controller.getPay();
+              var current_user = FirebaseAuth.instance.currentUser;
+              if ((current_user != null)) {
+                await FirebaseFirestore.instance
+                    .collection("reservation")
+                    .where("park", isEqualTo: "/parking/" + widget.idPark)
+                    .where("idPlace", isEqualTo: selectedItem)
+                    .snapshots()
+                    .listen((event) async {
+                  if (event.docs.isEmpty) {
+                    if (pay == true) {
+                      await FirebaseFirestore.instance
+                          .collection("reservation")
+                          .doc()
+                          .set({
+                        'name': name,
+                        'phone_number': phoneNumber,
+                        'plate_number': PlateNumber,
+                        'start_time': startDate,
+                        'finish_time': finishDate,
+                        'user': "/utilisateur/" + current_user.uid,
+                        'park': "/parking/" + widget.idPark,
+                        'valide': "",
+                        'idPlace': selectedItem
+                      });
 
-      body: container,
+                      controller.setPay(false);
+                      Navigator.pop(context);
+                    } else {
+                      Fluttertoast.showToast(
+                          msg: "Please make payment first",
+                          toastLength: Toast.LENGTH_SHORT,
+                          gravity: ToastGravity.BOTTOM,
+                          timeInSecForIosWeb: 2,
+                          backgroundColor: Colors.red,
+                          textColor: Colors.white,
+                          fontSize: 13.0);
+                    }
+                  } else {
+                    Fluttertoast.showToast(
+                        msg: "this  place  is  reserved",
+                        toastLength: Toast.LENGTH_SHORT,
+                        gravity: ToastGravity.BOTTOM,
+                        timeInSecForIosWeb: 2,
+                        backgroundColor: Colors.red,
+                        textColor: Colors.white,
+                        fontSize: 13.0);
+                  }
 
-      drawer: Drawer(
-        child: SingleChildScrollView(
-          child:Container (
+                  setState(() {});
+                });
+              }
+            }
+          },
+          label: Text(
+            "Save",
+            style: GoogleFonts.nunito(
+                color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+        ),
+        appBar: AppBar(
+          backgroundColor: Colors.green[300],
+          title: Text(
+            "Make reservation",
+            style: GoogleFonts.nunito(
+                color: Colors.black, fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+        ),
+        body: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
             child: Column(
               children: [
-                MyHeaderDrawer(),
-                MyDrawerList(),
-                
-              ])
-          ,) ),
-      ),
-      
-    );
+                Container(
+                  height: 200,
+                  color: Colors.grey[200],
+                  padding: EdgeInsets.fromLTRB(10, 25, 10, 10),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            margin: EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Start time",
+                                  style: GoogleFonts.nunito(
+                                      color: Colors.black,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800),
+                                ),
+                                SizedBox(
+                                  height: 8,
+                                ),
+                                ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                        minimumSize: Size(80, 30),
+                                        primary: Colors.grey),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        //  const SizedBox(width: 8),
+                                        Text(
+                                          'Select time',
+                                          style: TextStyle(fontSize: 16),
+                                        ),
+                                      ],
+                                    ),
+                                    onPressed: () {
+                                      Utils.showSheet(
+                                        context,
+                                        child: buildDateTimePicker(),
+                                        onClicked: () {
+                                          final value =
+                                              DateFormat('yyyy/MM/dd HH:mm')
+                                                  .format(dateTime);
+                                          Utils.showSnackBar(
+                                              context, 'Selected "$value"');
+                                          startDate = value;
+                                          setState(() {});
+
+                                          Navigator.pop(context);
+                                        },
+                                      );
+                                    }),
+                                SizedBox(
+                                  height: 10,
+                                ),
+                                Text("${startDate}"),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            margin: EdgeInsets.all(5),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Finish Time",
+                                  style: GoogleFonts.nunito(
+                                      color: Colors.black,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800),
+                                ),
+                                ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                        minimumSize: Size(40, 20),
+                                        primary: Colors.grey),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Select time',
+                                          style: TextStyle(fontSize: 16),
+                                        ),
+                                      ],
+                                    ),
+                                    onPressed: () {
+                                      Utils.showSheet(
+                                        context,
+                                        child: buildDateTimePicker(),
+                                        onClicked: () {
+                                          final value =
+                                              DateFormat('yyyy/MM/dd HH:mm')
+                                                  .format(dateTime);
+                                          Utils.showSnackBar(
+                                              context, 'Selected "$value"');
+                                          finishDate = value;
+                                          setState(() {});
+
+                                          Navigator.pop(context);
+                                        },
+                                      );
+                                    }),
+                                SizedBox(
+                                  height: 10,
+                                ),
+                                Text("${finishDate}"),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            child: DropdownButton<String>(
+                              value: selectedItem,
+                              items: items
+                                  .map((item) => DropdownMenuItem<String>(
+                                        value: item,
+                                        child: Text(item),
+                                      ))
+                                  .toList(),
+                              onChanged: (item) => setState(() {
+                                selectedItem = item;
+                                print("$selectedItem");
+                              }),
+                            ),
+                          )
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+                Container(
+                  height: 1500,
+                  color: Colors.white,
+                  margin: EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: 20,
+                      ),
+                      TextFormField(
+                        onChanged: (newValue) => name = newValue,
+                        validator: (value) {
+                          if (value!.isEmpty) {
+                            return 'please Fill name input';
+                          }
+                        },
+                        decoration: InputDecoration(
+                            labelText: "Name",
+                            labelStyle: GoogleFonts.nunito(
+                                fontSize: 20, color: Colors.black87),
+                            hintText: "enter your name ",
+                            hintStyle: GoogleFonts.nunito(
+                                fontSize: 18, color: Colors.black54),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 30, vertical: 20),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              gapPadding: 10,
+                              borderSide:
+                                  BorderSide(color: Colors.green.shade300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: const BorderSide(color: Colors.black),
+                              gapPadding: 10,
+                            )),
+                      ),
+                      SizedBox(
+                        height: 25,
+                      ),
+                      TextFormField(
+                        onChanged: (newValue) => phoneNumber = newValue,
+                        validator: (value) {
+                          if (value!.isEmpty) {
+                            return 'please Fill  phone number input';
+                          }
+                        },
+                        decoration: InputDecoration(
+                            labelText: "Phone number",
+                            labelStyle: GoogleFonts.nunito(
+                                fontSize: 20, color: Colors.black87),
+                            hintText: "enter your phone number ",
+                            hintStyle: GoogleFonts.nunito(
+                                fontSize: 18, color: Colors.black54),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 30, vertical: 20),
+                            enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(28),
+                                gapPadding: 10,
+                                borderSide:
+                                    BorderSide(color: Colors.green.shade300)),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: const BorderSide(color: Colors.black),
+                              gapPadding: 10,
+                            )),
+                      ),
+                      SizedBox(
+                        height: 25,
+                      ),
+                      TextFormField(
+                        onChanged: (newValue) => PlateNumber = newValue,
+                        validator: (value) {
+                          if (value!.isEmpty) {
+                            return 'please Fill  plate  number input';
+                          }
+                        },
+                        decoration: InputDecoration(
+                            labelText: "Plate Number",
+                            labelStyle: GoogleFonts.nunito(
+                                fontSize: 20, color: Colors.black87),
+                            hintText: "enter your plate number ",
+                            hintStyle: GoogleFonts.nunito(
+                                fontSize: 18, color: Colors.black54),
+                            floatingLabelBehavior: FloatingLabelBehavior.always,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 30, vertical: 20),
+                            enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(28),
+                                gapPadding: 10,
+                                borderSide:
+                                    BorderSide(color: Colors.green.shade300)),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(28),
+                              borderSide: const BorderSide(color: Colors.black),
+                              gapPadding: 10,
+                            )),
+                      ),
+                      SizedBox(
+                        height: 30,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          var multipleTarif;
+                          //Navigator.push(context,MaterialPageRoute(builder:(context)=>AppHome()));
+                          var differenceDate = DateFormat("yyyy/MM/dd HH:mm")
+                              .parse(finishDate)
+                              .difference(DateFormat("yyyy/MM/dd HH:mm")
+                                  .parse(startDate));
+                          //DateFormat("yyyy/MM/dd HH:mm").parse(finishDate);
+                          //print("start  time =${startDate}");
+                          //print("start  time =${finishDate}");
+
+                          //print("finish  date  - start date = ${finishDate.runtimeType}");
+                          multipleTarif =
+                              ((differenceDate.inMinutes) / 60).ceil();
+
+                          print("hhhhhh ${differenceDate.runtimeType}");
+                          //print("finish  date  - start date = ${finishDate.runtimeType}");
+                          controller.makePayment(
+                              amount: (int.parse(widget.tarif) * multipleTarif)
+                                  .toString(),
+                              currency: 'eur');
+                          //controller.setPay(false);
+                        },
+                        child: Text(
+                          "Make payment",
+                        ),
+                        style: TextButton.styleFrom(
+                            primary: Colors.white,
+                            backgroundColor: Colors.green.shade300,
+                            elevation: 5,
+                            textStyle: GoogleFonts.nunito(
+                                fontSize: 20, color: Colors.white),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20))),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ));
   }
 
-  Widget MyDrawerList(){
-    return Container(
-      padding: EdgeInsets.only(top: 25),
-      child: Column(
-        children: [
-          menuItem(1 , "Find Parking", Icons.local_parking_outlined,
-               currentPage == DrawerSections.Find_park ? true : false),
-          menuItem(2 , "Reservation", Icons.book_online_outlined,
-               currentPage == DrawerSections.Reservation ? true : false),
-          menuItem(3 , "Payment", Icons.payment_outlined , 
-               currentPage == DrawerSections.Payment ? true : false),
-          menuItem(4 , "Log Out", Icons.credit_score_outlined,
-               currentPage == DrawerSections.Log_out ? true : false),
-          
-        ],
-
-      ),
-
-    );
-
-  }
-
-  Widget menuItem(int id , String title , IconData icon , bool selected){
-    return Material(
-      color: selected ? Colors.grey[300] : Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          Navigator.pop(context);
-          setState(() {
-            if (id == 1 ){
-              currentPage = DrawerSections.Find_park;
-            } else if (id == 2 ){
-              currentPage = DrawerSections.Reservation;
-            } else if (id == 3 ){
-              currentPage = DrawerSections.Payment;
-            } else if (id == 4 ){
-              currentPage = DrawerSections.Log_out;
-            }
-          });
-        } ,
-        child: Padding(
-        padding: EdgeInsets.all(15.0) ,
-        child:Row(
-          children:  [
-             Expanded(
-              child: Icon(
-                icon ,
-                size: 30,
-                color: Colors.black,)
-              ),
-            Expanded(
-              flex: 2,
-              child: 
-              Text(
-                title,
-              style: TextStyle(color: Colors.black,fontSize: 22),))
-          ]) ,
+  Widget buildDateTimePicker() => SizedBox(
+        height: 180,
+        child: CupertinoDatePicker(
+          initialDateTime: dateTime,
+          mode: CupertinoDatePickerMode.dateAndTime,
+          minimumDate: dateTime,
+          //maximumDate: dateTime,
+          //maximumDate: DateTime.parse("2027-06-15"),
+          use24hFormat: true,
+          onDateTimeChanged: (dateTime) =>
+              setState(() => this.dateTime = dateTime),
         ),
-      )
+      );
+}
+
+class Utils {
+  static List<Widget> modelBuilder<M>(
+          List<M> models, Widget Function(int index, M model) builder) =>
+      models
+          .asMap()
+          .map<int, Widget>(
+              (index, model) => MapEntry(index, builder(index, model)))
+          .values
+          .toList();
+
+  static void showSheet(
+    BuildContext context, {
+    required Widget child,
+    required VoidCallback onClicked,
+  }) =>
+      showCupertinoModalPopup(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          actions: [
+            child,
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            child: Text('Done'),
+            onPressed: onClicked,
+          ),
+        ),
+      );
+
+  static showSnackBar(BuildContext context, String text) {
+    final snackBar = SnackBar(
+      content: Text(text, style: TextStyle(fontSize: 24)),
     );
+    // return snackBar ;
+
+    ScaffoldMessenger.of(context)
+      ..removeCurrentSnackBar()
+      ..showSnackBar(snackBar);
   }
-
-
-
-
-
-
 }
 
-enum DrawerSections {
-  Find_park,
-  Reservation ,
-  Payment,
-  
-  Log_out,
+class ButtonWidget extends StatelessWidget {
+  final VoidCallback onClicked;
 
-
-
-}
-
-
-
-
-
-
-
-
-
-class MyHeaderDrawer extends StatefulWidget {
-  
+  const ButtonWidget({
+    Key? key,
+    required this.onClicked,
+  }) : super(key: key);
 
   @override
-  _MyDrawerHeaderState createState() => _MyDrawerHeaderState();
-}
-
-class _MyHeaderDrawerState {
-}
-
-class _MyDrawerHeaderState extends State<MyHeaderDrawer> {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.teal,
-      width: double.infinity,
-      height: 150,
-      padding: EdgeInsets.only(top: 50.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          
-          Container(
-            margin: EdgeInsets.only(bottom: 50),
-            height: 50,
-            
-            
-             
-            
-          )
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ElevatedButton(
+        style: ElevatedButton.styleFrom(
+            minimumSize: Size(90, 40), primary: Colors.grey),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(width: 8),
+            Text(
+              'Select time',
+              style: TextStyle(fontSize: 18),
+            ),
+          ],
+        ),
+        onPressed: onClicked,
+      );
 }
